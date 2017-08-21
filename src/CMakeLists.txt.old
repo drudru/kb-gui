@@ -1,0 +1,12 @@
+
+file(GLOB sources      *.cpp *.hpp
+                       *.h
+                       ../subprojects/stb_image.h)
+
+set (CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -static-libstdc++ -static-libgcc -fno-exceptions -fno-rtti -fno-threadsafe-statics")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti -fno-threadsafe-statics")
+
+
+add_executable(kb-gui ${sources})
+
