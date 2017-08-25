@@ -3,11 +3,11 @@
 
 #include "common.h"
 
-#include "ProtoIterator.hpp"
+#include "NXProtoIterator.hpp"
 
 
 #pragma pack(push, 1)
-struct KBConstStringList : ProtoIterator<char *>
+struct KBConstStringList : NXProtoIterator<char *>
 {
 
 private:

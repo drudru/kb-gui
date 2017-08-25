@@ -7,7 +7,5 @@ fips_begin_app(kb-gui  windowed)
                     NO_RECURSE
                 )
             #    fips_deps()
-
-     fips_deps(rpi-gpio)
 fips_end_app()
 

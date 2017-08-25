@@ -3,17 +3,17 @@
 #include "common.h"
 
 #include "NXGeom.hpp"
-// TODO: add common.h, add perror, panic, etc.
-//
+#include "NXFilePath.hpp"
+#include "NXFileDir.hpp"
+#include "NXMMapFile.hpp"
 #include "KBMenu.hpp"
 
-#include "KBFileSys.hpp"
 #include "KBConstStringList.hpp"
 
 #include <sys/types.h>
 #include <sys/wait.h>
 
-void show_passwords(KBMenu * pmenu, KBFilePath * ppath);
+void show_passwords(KBMenu * pmenu, NXFilePath * ppath);
 void show_settings(KBMenu * pmenu);
 void key_password(char * pathname);
 
@@ -43,9 +43,23 @@ main()
     */
 
     //stbi_image_free( font );
+    //
+    // Connect to Unix domain socket for events
+    auto srvr = NXUnixPacketSocket::CreateClient("/tmp/kb-gpio");
+
+    if (!srvr.valid())
+    {
+        printf("Cannot connect to kb-gpio process\n");
+        sleep(1);
+        exit(1);
+    }
+
+    srvr.send_msg("kb-gui");
+    srvr.recv_ack();
+
     while (true)
     {
-        KBMenu main_menu(&screen);
+        KBMenu main_menu(&screen, &srvr);
 
         const char * menu_strs[] = { "Key a password", "Settings", NULL };
         choices.set_list(menu_strs);
@@ -55,7 +69,7 @@ main()
 
         if (choice == 0)
         {
-            KBFilePath path{ "/boot/KeyBox/Passwords" };
+            NXFilePath path{ "/boot/KeyBox/Passwords" };
             show_passwords(&main_menu, &path);
         }
         else
@@ -65,14 +79,14 @@ main()
 
 }
 
-void show_passwords(KBMenu * pmenu, KBFilePath * ppath)
+void show_passwords(KBMenu * pmenu, NXFilePath * ppath)
 {
     while (true)
     {
 
         {
-            KBFileDir dir(ppath);
-            KBHumanDir choices(&dir);
+            NXFileDir dir(ppath);
+            NXHumanDir choices(&dir);
 
             // TODO Sprintf title
 
@@ -98,13 +112,13 @@ void show_passwords(KBMenu * pmenu, KBFilePath * ppath)
 
             if (pdirent->d_type == DT_REG)
             {
-                KBFilePath new_path = ppath->add(pdirent->d_name);
+                NXFilePath new_path = ppath->add(pdirent->d_name);
                 pmenu->display_status("Run...");
                 key_password(new_path.path());
             }
             else
             {
-                KBFilePath new_path = ppath->add(pdirent->d_name);
+                NXFilePath new_path = ppath->add(pdirent->d_name);
                 pmenu->display_status("Open...");
                 show_passwords(pmenu, &new_path);
             }
@@ -129,7 +143,7 @@ void show_settings(KBMenu * pmenu)
 
 void key_password(char * pathname)
 {
-    KBMmapFile fmap;
+    NXMmapFile fmap;
     if (!fmap.map(pathname))
         return;
 

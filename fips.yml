@@ -5,8 +5,6 @@
 imports: 
     nx:
         git: https://github.com/drudru/nx.git
-    rpi-gpio:
-        git: https://github.com/drudru/rpi-gpio.git
     fips-stb:
         git: https://github.com/fungos/fips-stb.git
 

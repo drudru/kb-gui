@@ -9,17 +9,17 @@
 #define STBI_ONLY_PNG
 #include "stb_image.h"
 
-#include "mmapGpio.hpp"
-
-#include "ProtoIterator.hpp"
+#include "NXProtoIterator.hpp"
+#include "NXUnixPacketSocket.hpp"
 
 struct KBMenu
 {
-    NXCanvas * canvas      = nullptr;
+    NXCanvas           *  canvas     = nullptr;
+    NXUnixPacketSocket * _events     = nullptr;
 private:
-    NXRect   * screen_rect = nullptr;
-    NXFontAtlas * font = nullptr;
-    NXFontAtlas * bold_font = nullptr;
+    NXRect      * screen_rect = nullptr;
+    NXFontAtlas * font        = nullptr;
+    NXFontAtlas * bold_font   = nullptr;
 
     U8 curr_choice;        
     U8 last_choice;        
@@ -27,12 +27,11 @@ private:
     NXColor fg;
     NXColor bg;
 
-    mmapGpio _rpiGpio;
-
 public:
-    KBMenu(NXCanvas * cnvs)
+    KBMenu(NXCanvas * cnvs, NXUnixPacketSocket * evts)
     {
         canvas = cnvs;
+        _events = evts;
 
         // https://en.wikipedia.org/wiki/Video_Graphics_Array#Color_palette
         bg = NXColor{   0,   0, 170, 255}; // Blue
@@ -92,19 +91,6 @@ public:
         bold_font->init();
 
         printf("font char: %d x %d\n", bold_font->char_size.w, bold_font->char_size.h);
-
-
-        _rpiGpio.setPinDir(17, mmapGpio::INPUT);
-        _rpiGpio.setPinPUD(17, mmapGpio::PUD_UP);
-
-        _rpiGpio.setPinDir(22, mmapGpio::INPUT);
-        _rpiGpio.setPinPUD(22, mmapGpio::PUD_UP);
-
-        _rpiGpio.setPinDir(23, mmapGpio::INPUT);
-        _rpiGpio.setPinPUD(23, mmapGpio::PUD_UP);
-
-        _rpiGpio.setPinDir(27, mmapGpio::INPUT);
-        _rpiGpio.setPinPUD(27, mmapGpio::PUD_UP);
     }
 
     ~KBMenu()
@@ -112,10 +98,8 @@ public:
         // TODO: fix leaks
     }
 
-    int render (const char * title, ProtoIterator<char *> * pchoices, bool allow_cancel)
+    int render (const char * title, NXProtoIterator<char *> * pchoices, bool allow_cancel)
     {
-        // nano-event-loop
-        bool sleep_mode = false;
         while (true)
         {
             draw_bkgnd(allow_cancel);
@@ -125,84 +109,50 @@ public:
             last_choice = 0;
             draw_choices(pchoices);
 
-            unsigned int counter = 0;
-
-            int button = -1;
-            while(!sleep_mode)
+            // event loop
+            while (true)
             {
-                usleep(100000); //delay for 0.1 seconds
+                _events->send_ack();
+                auto msg = _events->recv_msg();
 
-                if (_rpiGpio.readPin(17) == mmapGpio::LOW)
-                    button = 0;
-                else
-                if (_rpiGpio.readPin(22) == mmapGpio::LOW)
-                    button = 1;
-                else
-                if (_rpiGpio.readPin(23) == mmapGpio::LOW)
-                    button = 2;
-                else
-                if (_rpiGpio.readPin(27) == mmapGpio::LOW)
-                    button = 3;
-
-
-                if (button == -1)
+                printf("msg %s\n", msg._str);
+                if (msg == "b0")
                 {
-                    counter++;
-                    if (counter > 100)
-                    {
-                        sleep_mode = true;
-                        canvas->fill_rect(screen_rect, NXColor{0,0,0,1});
-                    }
-                }
-                else
-                {
-                    counter = 0;
-                    printf("Button! %d\n", button);
-
-                    // Wait for all to go to HIGH
-                    // Ghetto debouncing...
-                    while (true)
-                    {
-                        usleep(100000); //delay for 0.1 seconds
-                        if ( true
-                                && (_rpiGpio.readPin(17) == mmapGpio::HIGH)
-                                && (_rpiGpio.readPin(22) == mmapGpio::HIGH)
-                                && (_rpiGpio.readPin(23) == mmapGpio::HIGH)
-                                && (_rpiGpio.readPin(27) == mmapGpio::HIGH)
-                           )
-                            break;
-                    }
-
-                    if ((button == 0) && (curr_choice != 0))
+                    if (curr_choice != 0)
                         curr_choice--;
-                    else
-                    if ((button == 1) && (curr_choice != last_choice))
-                        curr_choice++;
-
-                    if (allow_cancel && (button == 2))
-                        return -1;
-                    if (button == 3)
-                        return curr_choice;
-
-                    draw_choices(pchoices);
-
-                    // Reset button
-                    button = -1;
                 }
-            }
+                else
+                if (msg == "b1")
+                {
+                    if (curr_choice != last_choice)
+                        curr_choice++;
+                }
+                else
+                if (msg == "b2")
+                {
+                    if (allow_cancel)
+                        return -1;
+                }
+                else
+                if (msg == "b3")
+                {
+                    return curr_choice;
+                }
+                else
+                if (msg == "wake")
+                {
+                    // redraw screen
+                    break;
+                }
+                else
+                {
+                    printf("kb-gui unhandled msg\n");
+                }
 
-            while (sleep_mode)
-            {
-                usleep(100000); //delay for 0.1 seconds
-                if ( false
-                     || (_rpiGpio.readPin(17) == mmapGpio::LOW)
-                     || (_rpiGpio.readPin(22) == mmapGpio::LOW)
-                     || (_rpiGpio.readPin(23) == mmapGpio::LOW)
-                     || (_rpiGpio.readPin(27) == mmapGpio::LOW)
-                         )
-                 sleep_mode = false;
-            }
-        }
+                draw_choices(pchoices);
+            } // event loop
+
+        } // draw menu loop
         
         return 0;
     }
@@ -284,7 +234,7 @@ public:
         canvas->draw_font(font, pt, "ok");
     }
 
-    void draw_choices(ProtoIterator<char *> * pchoices)
+    void draw_choices(NXProtoIterator<char *> * pchoices)
     {
         U8 index = 0;
 
