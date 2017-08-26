@@ -49,7 +49,7 @@ main()
 
     if (!srvr.valid())
     {
-        printf("Cannot connect to kb-gpio process\n");
+        fprintf(stderr, "Cannot connect to kb-gpio process\n");
         sleep(1);
         exit(1);
     }
@@ -65,7 +65,7 @@ main()
         choices.set_list(menu_strs);
         int choice = main_menu.render("KeyBox", &choices, false);
 
-        printf("Chose: %d\n", choice);
+        fprintf(stderr, "Chose: %d\n", choice);
 
         if (choice == 0)
         {
@@ -92,7 +92,7 @@ void show_passwords(KBMenu * pmenu, NXFilePath * ppath)
 
             int choice = pmenu->render(ppath->basename(), &choices, true);
 
-            printf("Passwords Chose: %d\n", choice);
+            fprintf(stderr, "Passwords Chose: %d\n", choice);
             if (choice == -1)
                 return;
 
@@ -108,7 +108,7 @@ void show_passwords(KBMenu * pmenu, NXFilePath * ppath)
                 pdirent = choices.get_dirent();
             }
 
-            printf("         Choice: %s\n", pdirent->d_name);
+            fprintf(stderr, "         Choice: %s\n", pdirent->d_name);
 
             if (pdirent->d_type == DT_REG)
             {
@@ -134,7 +134,7 @@ void show_settings(KBMenu * pmenu)
         choices.set_list(menu_strs);
         int choice = pmenu->render("/Settings", &choices, true);
 
-        printf("Settings Chose: %d\n", choice);
+        fprintf(stderr, "Settings Chose: %d\n", choice);
 
         if (choice == -1)
             return;

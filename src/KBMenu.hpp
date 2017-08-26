@@ -90,7 +90,7 @@ public:
         bold_font->size  = { 32, 8 };
         bold_font->init();
 
-        printf("font char: %d x %d\n", bold_font->char_size.w, bold_font->char_size.h);
+        fprintf(stderr, "font char: %d x %d\n", bold_font->char_size.w, bold_font->char_size.h);
     }
 
     ~KBMenu()
@@ -112,10 +112,10 @@ public:
             // event loop
             while (true)
             {
-                _events->send_ack();
+                _events->send_msg("wait");
                 auto msg = _events->recv_msg();
 
-                printf("msg %s\n", msg._str);
+                fprintf(stderr, "KBMenu msg %s\n", msg._str);
                 if (msg == "b0")
                 {
                     if (curr_choice != 0)
@@ -145,8 +145,16 @@ public:
                     break;
                 }
                 else
+                if (msg == "")
                 {
-                    printf("kb-gui unhandled msg\n");
+                    // kb-gui died, restart
+                    usleep(200000);
+                    exit(1);
+                    break;
+                }
+                else
+                {
+                    fprintf(stderr, "KBMenu unhandled msg\n");
                 }
 
                 draw_choices(pchoices);
@@ -179,7 +187,7 @@ public:
         canvas->draw_font(font, pt, title);
 
         canvas->state.bg = prev_bg;
-        usleep(500000);
+        usleep(200000);
     }
 
     void draw_title(const char * title)
@@ -243,7 +251,7 @@ public:
         pt.x = ( 2) * font->char_size.w;
         pt.y = ( 3) * font->char_size.h;
 
-        printf("draw_choices\n");
+        fprintf(stderr, "draw_choices\n");
 
         pchoices->rewind();
 
