@@ -16,6 +16,7 @@
 void show_passwords(KBMenu * pmenu, NXFilePath * ppath);
 void show_settings(KBMenu * pmenu);
 void key_password(char * pathname);
+void gen_password();
 
 KBConstStringList choices;
 
@@ -61,7 +62,12 @@ main()
     {
         KBMenu main_menu(&screen, &srvr);
 
-        const char * menu_strs[] = { "Key a password", "Settings", NULL };
+        const char * menu_strs[] = {
+            "Key a password",
+            "Gen a password",
+            "Settings",
+            NULL
+        };
         choices.set_list(menu_strs);
         int choice = main_menu.render("KeyBox", &choices, false);
 
@@ -74,6 +80,12 @@ main()
         }
         else
         if (choice == 1)
+        {
+            main_menu.display_status("Gen...");
+            gen_password();
+        }
+        else
+        if (choice == 2)
             show_settings(&main_menu);
     }
 
@@ -178,6 +190,94 @@ void key_password(char * pathname)
             if ((res == -1) || (res != pid))
                 panic();
         }
+    }
+
+}
+
+void gen_password()
+{
+    // Gen the password
+    //
+    //
+
+    int pfd[2];
+    char buff[9];
+
+    if (pipe(pfd) == -1)
+        panic();
+
+    int pid = fork();
+    if (pid < 0)
+        panic();
+
+    if (pid == 0)
+    {
+        // Child
+
+        // close read-end
+        close(pfd[0]);
+
+        if (dup2(pfd[1], 1) == -1)  // pipe write end -> stdout
+            panic();
+        close(pfd[1]);
+
+        char * const newenviron[] = { NULL };
+
+        const char * tmpargv[]    = { "./kb-genpass", "8", NULL };
+
+        char * const * newargv = (char * const *)tmpargv;
+        execve(newargv[0], newargv, newenviron);
+        perror("execve");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        // Parent
+
+        // close write-end
+        close(pfd[1]);
+
+        if (read(pfd[0], buff, 9) != 9)
+            panic();
+        buff[8] = 0; // cut-off the newline
+
+        int status;
+        int res = wait(&status);
+
+        if ((res == -1) || (res != pid))
+            panic();
+
+        close(pfd[0]);
+    }
+
+    // Send the keys
+
+    pid = fork();
+
+    if (pid < 0)
+        panic();
+
+    if (pid == 0)
+    {
+        // Child
+        char * const newenviron[] = { NULL };
+
+        const char * tmpargv[]    = { "./kb-key", "/dev/hidg0", NULL, NULL };
+        tmpargv[2] = buff;
+
+        char * const * newargv = (char * const *)tmpargv;
+        execve(newargv[0], newargv, newenviron);
+        perror("execve");
+        exit(EXIT_FAILURE);
+    }
+    else
+    {
+        // Parent
+        int status;
+        int res = wait(&status);
+
+        if ((res == -1) || (res != pid))
+            panic();
     }
 
 }
