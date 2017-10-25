@@ -4,93 +4,33 @@
 #include "common.h"
 
 #include "NXCanvas.hpp"
-
-#define STB_IMAGE_IMPLEMENTATION
-#define STBI_ONLY_PNG
-#include "stb_image.h"
+#include "KBScreen.hpp"
 
 #include "NXProtoIterator.hpp"
 #include "NXUnixPacketSocket.hpp"
 
 struct KBMenu
 {
-    NXCanvas           *  canvas     = nullptr;
+    KBScreen           * _screen     = nullptr;
+    NXCanvas           * _canvas     = nullptr;
     NXUnixPacketSocket * _events     = nullptr;
 private:
-    NXRect      * screen_rect = nullptr;
-    NXFontAtlas * font        = nullptr;
-    NXFontAtlas * bold_font   = nullptr;
+    //NXRect      * screen_rect = nullptr;
+    //NXFontAtlas * font        = nullptr;
+    //NXFontAtlas * bold_font   = nullptr;
 
     U8 curr_choice;        
     U8 last_choice;        
 
-    NXColor fg;
-    NXColor bg;
+    //NXColor fg;
+    //NXColor bg;
 
 public:
-    KBMenu(NXCanvas * cnvs, NXUnixPacketSocket * evts)
+    KBMenu(KBScreen * screen, NXUnixPacketSocket * evts)
     {
-        canvas = cnvs;
+        _screen = screen;
+        _canvas = _screen->canvas();
         _events = evts;
-
-        // https://en.wikipedia.org/wiki/Video_Graphics_Array#Color_palette
-        bg = NXColor{   0,   0, 170, 255}; // Blue
-        fg = NXColor{ 255, 255,  85, 255}; // Yellow
-        canvas->state.bg = bg;
-        canvas->state.fg = fg;
-        canvas->state.mono_color_txform = true;
-
-        screen_rect = &cnvs->bitmap.rect;
-
-        // Load image with 1 byte per pixel
-        int stb_width, stb_height, stb_bpp;
-        //unsigned char* font = stbi_load( "5271font.png", &stb_width, &stb_height, &stb_bpp, 1 );
-
-        // Wyse Font
-        char font_path[] = "wy700font.png";
-        unsigned char* font_stb_bmp = stbi_load(font_path, &stb_width, &stb_height, &stb_bpp, 1 );
-        if (!font_stb_bmp) {
-            fprintf(stderr, "missing font file %s\n", font_path);
-            exit(1);
-        }
-
-        NXBitmap * font_bmp    = nullptr;
-        int16_t width  = stb_width;
-        int16_t height = stb_height;
-        int8_t  chans  = stb_bpp;
-        font_bmp =  new NXBitmap { (uint8_t *)font_stb_bmp, {0, 0, width, height}, NXColorChan::GREY1 };
-        //printf("font: %d x %d\n", width, height);
-
-        // Invert the Font Atlas
-        {
-            U8 * tmp_mem = (U8 *)malloc(width * height);
-            memset(tmp_mem, 0xff, width * height);
-            NXBitmap tmp_bmp =  { tmp_mem, {0, 0, width, height}, NXColorChan::GREY1 };
-
-            NXCanvasROP tmp_rop = canvas->state.rop;
-            canvas->state.rop = NXCanvasROP::XOR;
-
-            NXBlit::blit(&tmp_bmp, &font_bmp->rect, // src
-                         font_bmp, &font_bmp->rect, // dst
-                         &canvas->state);
-
-            canvas->state.rop = tmp_rop;
-            free(tmp_mem);
-        }
-
-        font = new NXFontAtlas();
-        font->atlas = font_bmp;
-        font->rect  = { { 0, 128 }, { 512, 128 } };
-        font->size  = { 32, 8 };
-        font->init();
-
-        bold_font = new NXFontAtlas();
-        bold_font->atlas = font_bmp;
-        bold_font->rect  = { { 0, 0 }, { 512, 128 } };
-        bold_font->size  = { 32, 8 };
-        bold_font->init();
-
-        fprintf(stderr, "font char: %d x %d\n", bold_font->char_size.w, bold_font->char_size.h);
     }
 
     ~KBMenu()
@@ -108,6 +48,8 @@ public:
             curr_choice = 0;
             last_choice = 0;
             draw_choices(pchoices);
+
+            _screen->flush();
 
             // event loop
             while (true)
@@ -158,6 +100,7 @@ public:
                 }
 
                 draw_choices(pchoices);
+                _screen->flush();
             } // event loop
 
         } // draw menu loop
@@ -165,28 +108,36 @@ public:
         return 0;
     }
 
+    // Display a simple Status message (like a dialog)
     void display_status(const char * title)
     {
-        NXColor prev_bg = canvas->state.bg;
-        canvas->state.bg = NXColor{ 0xff, 0x55, 0x55, 0xff}; // Yellow
+        NXColor prev_fg   = _canvas->state.fg;
+        NXColor prev_bg   = _canvas->state.bg;
+        _canvas->state.fg = prev_bg;
+        _canvas->state.bg = prev_fg;
 
         // Text Rect Grid
-        NXRect txt_grid = {{4,6},{12,3}};
+        NXRect txt_grid = {{0,0},{12,2}};
+
+        txt_grid = txt_grid.center_in(_screen->text_rect);
 
         // Todo - fix the text rect/gfx rect - simplify
         // Move towards gfx rect and eliminate txt grid
         // This will pave the way for non monospace font
-        NXRect pix_grid = canvas->font_rect_convert(font, txt_grid);
-        canvas->fill_rect(&pix_grid, canvas->state.bg);
+        NXRect pix_grid = _canvas->font_rect_convert(&_screen->font, txt_grid);
+        _canvas->fill_rect(&pix_grid, _canvas->state.bg);
 
-        canvas->draw_font_rect(font, txt_grid);
+        _canvas->draw_font_rect(&_screen->font, txt_grid);
 
-        NXPoint pt = screen_rect->origin;
-        pt.x += ( 5) * font->char_size.w;
-        pt.y += ( 7) * font->char_size.h;
-        canvas->draw_font(font, pt, title);
+        NXPoint pt = _screen->screen_rect.origin;
+        pt.x += (txt_grid.origin.x + 1) * _screen->font.char_size.w;
+        pt.y += (txt_grid.origin.y + 1) * _screen->font.char_size.h;
+        _canvas->draw_font(&_screen->font, pt, title);
 
-        canvas->state.bg = prev_bg;
+        _canvas->state.fg = prev_fg;
+        _canvas->state.bg = prev_bg;
+        _screen->flush();
+
         usleep(200000);
     }
 
@@ -196,34 +147,33 @@ public:
 
         char tmp[] = ".";
 
-        pt.x = ( 2) * font->char_size.w;
+        pt.x = ( 2) * _screen->font.char_size.w;
         //pt.y = ( 3) * font->char_size.h;
 
         tmp[0] = 180; 
-        canvas->draw_font(bold_font, pt, tmp);
+        _canvas->draw_font(&_screen->font, pt, tmp);
 
-        pt.x += ( 1) * font->char_size.w;
+        pt.x += ( 1) * _screen->font.char_size.w;
 
-        canvas->draw_font(bold_font, pt, title);
+        _canvas->draw_font(&_screen->font, pt, title);
 
-        pt.x += (strlen(title)) * font->char_size.w;
+        pt.x += (strlen(title)) * _screen->font.char_size.w;
         tmp[0] = 195; 
-        canvas->draw_font(bold_font, pt, tmp);
+        _canvas->draw_font(&_screen->font, pt, tmp);
     }
 
     void draw_bkgnd(bool allow_cancel)
     {
-        //canvas->fill_rect(screen_rect, NXColor{0,0,255,1});
-        //canvas->draw_font(font, NXPoint{0,0}, "Testing 1 2 3");
-
-        canvas->fill_rect(screen_rect, canvas->state.bg);
+        _canvas->fill_rect(&_screen->screen_rect, _canvas->state.bg);
 
         // Text Rect Grid
-        canvas->draw_font_rect(font, NXRect{{0,0},{20,15}});
+        _canvas->draw_font_rect(&_screen->font, _screen->text_rect);
 
+        /*
+        // Draw menu choices at bottom
         char str[] = "X";
 
-        NXPoint pt = screen_rect->origin;
+        NXPoint pt = _screen->screen_rect.origin;
         pt.x += ( 2) * font->char_size.w;
         pt.y += (14) * font->char_size.h;
         str[0] = 30; // Up
@@ -240,6 +190,7 @@ public:
 
         pt.x += ( 4) * font->char_size.w;
         canvas->draw_font(font, pt, "ok");
+        */
     }
 
     void draw_choices(NXProtoIterator<char *> * pchoices)
@@ -248,8 +199,13 @@ public:
 
         NXPoint pt = {0, 0};
 
-        pt.x = ( 2) * font->char_size.w;
-        pt.y = ( 3) * font->char_size.h;
+        NXColor prev_fg   = _canvas->state.fg;
+        NXColor prev_bg   = _canvas->state.bg;
+        _canvas->state.fg = prev_bg;
+        _canvas->state.bg = prev_fg;
+
+        pt.x = ( 2) * _screen->font.char_size.w;
+        pt.y = ( 3) * _screen->font.char_size.h;
 
         fprintf(stderr, "draw_choices\n");
 
@@ -261,24 +217,27 @@ public:
             if (index == curr_choice)
             {
                 // Swap colors
-                canvas->state.fg = bg;
-                canvas->state.bg = fg;
+                _canvas->state.fg = prev_bg;
+                _canvas->state.bg = prev_fg;
             }
 
-            canvas->draw_font(font, pt, choice);
+            _canvas->draw_font(&_screen->font, pt, choice);
 
             if (index == curr_choice)
             {
                 // Restore normal colors
-                canvas->state.fg = fg;
-                canvas->state.bg = bg;
+                _canvas->state.fg = prev_fg;
+                _canvas->state.bg = prev_bg;
             }
 
-            pt.y += (2) * font->char_size.h;
+            pt.y += (2) * _screen->font.char_size.h;
             index++;
             choice = pchoices->get_next();
         }
 
         last_choice = index - 1;
+
+        _canvas->state.fg = prev_fg;
+        _canvas->state.bg = prev_bg;
     }
 };

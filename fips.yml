@@ -7,6 +7,8 @@ imports:
         git: https://github.com/drudru/nx.git
     fips-stb:
         git: https://github.com/fungos/fips-stb.git
+    kb-libs:
+        git: https://github.com/drudru/kb-libs.git
 
 #    oryol-imgui:
 #        git: https://github.com/floooh/oryol-imgui.git

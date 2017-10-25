@@ -5,7 +5,7 @@
 #include "NXGeom.hpp"
 #include "NXFilePath.hpp"
 #include "NXFileDir.hpp"
-#include "NXMMapFile.hpp"
+#include "NXMmapFile.hpp"
 #include "KBMenu.hpp"
 
 #include "KBConstStringList.hpp"
@@ -27,26 +27,8 @@ main()
     // Run Loop
     //
 
-    // Render to /dev/fb1
-    //
-    int fbfd = open("/dev/fb1", O_RDWR);
+    KBScreen screen;
 
-    NXRect screen_rect = {0, 0, 320, 240};
-    int screen_datasize = screen_rect.size.w * screen_rect.size.h * 2;
-    void * fbp = mmap(0, screen_datasize, PROT_READ | PROT_WRITE, MAP_SHARED, fbfd, 0);
-    close(fbfd);
-    NXCanvas screen { NXBitmap{(uint8_t *)fbp, screen_rect, NXColorChan::RGB565} }; 
-
-    /*
-    // Blit
-    NXBlit::blit(&font_bmp,   &screen_rect,    // Copy font-rect
-                 &screen_bmp, &screen_rect);
-    //NXBlit::blit(&font_bmp,   &font_bmp.rect,    // Copy font-rect
-    //             &screen_bmp, &font_bmp.rect);
-    */
-
-    //stbi_image_free( font );
-    //
     // Connect to Unix domain socket for events
     auto srvr = NXUnixPacketSocket::CreateClient("/tmp/kb-gpio");
 
