@@ -8,7 +8,7 @@
 #include "NXMmapFile.hpp"
 #include "KBMenu.hpp"
 
-#include "KBConstStringList.hpp"
+#include "NXConstStringList.hpp"
 
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -20,7 +20,7 @@ void key_password(char * pathname);
 void gen_password();
 void gen_rand(const char * base);
 
-KBConstStringList choices;
+NXConstStringList choices;
 
 main()
 {

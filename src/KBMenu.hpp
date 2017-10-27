@@ -8,6 +8,7 @@
 
 #include "NXProtoIterator.hpp"
 #include "NXUnixPacketSocket.hpp"
+#include "KBListBox.hpp"
 
 struct KBMenu
 {
@@ -19,8 +20,8 @@ private:
     //NXFontAtlas * font        = nullptr;
     //NXFontAtlas * bold_font   = nullptr;
 
-    U8 curr_choice;        
-    U8 last_choice;        
+    U32 curr_choice;        
+    U32 last_choice;        
 
     //NXColor fg;
     //NXColor bg;
@@ -45,65 +46,17 @@ public:
             draw_bkgnd(allow_cancel);
             draw_title(title);
 
-            curr_choice = 0;
             last_choice = 0;
-            draw_choices(pchoices);
 
-            _screen->flush();
+            KBListBox list_box(_screen, _events);
+            NXRect list_rect = _screen->text_rect.inset(1);
+            list_box._text_rect = list_rect;
+            list_box._padding = 2;
 
-            // event loop
-            while (true)
-            {
-                _events->send_msg("wait");
-                auto msg = _events->recv_msg();
+            curr_choice = list_box.go(pchoices, allow_cancel, -1);
 
-                fprintf(stderr, "KBMenu msg %s\n", msg._str);
-                if (msg == "b0")
-                {
-                    if (curr_choice != 0)
-                        curr_choice--;
-                }
-                else
-                if (msg == "b1")
-                {
-                    if (curr_choice != last_choice)
-                        curr_choice++;
-                }
-                else
-                if (msg == "b2")
-                {
-                    if (allow_cancel)
-                        return -1;
-                }
-                else
-                if (msg == "b3")
-                {
-                    return curr_choice;
-                }
-                else
-                if (msg == "wake")
-                {
-                    // redraw screen
-                    break;
-                }
-                else
-                if (msg == "")
-                {
-                    // kb-gui died, restart
-                    usleep(200000);
-                    exit(1);
-                    break;
-                }
-                else
-                {
-                    fprintf(stderr, "KBMenu unhandled msg\n");
-                }
-
-                draw_choices(pchoices);
-                _screen->flush();
-            } // event loop
-
-        } // draw menu loop
+            return curr_choice;
+        }
         
         return 0;
     }
@@ -117,7 +70,7 @@ public:
         _canvas->state.bg = prev_fg;
 
         // Text Rect Grid
-        NXRect txt_grid = {{0,0},{12,2}};
+        NXRect txt_grid = {{0,0},{12,3}};
 
         txt_grid = txt_grid.center_in(_screen->text_rect);
 
